@@ -1,0 +1,88 @@
+variables:
+  DOCKER_DRIVER: overlay2
+  DOCKER_TLS_CERTDIR: ""
+  IMAGE_TAG: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:$CI_COMMIT_SHA
+  AKSCLUSTERNAME: spoke1akscluster
+  CLAIR_OUTPUT: High
+
+image: docker:latest
+
+stages:
+  - lint
+  - build
+  - test
+  - staging
+  - production
+
+eslint:
+  image: node:latest
+  stage: lint
+  before_script:
+    - npm init --yes
+    - npm install -g eslint
+  script:
+    - eslint -c .eslintrc.js server.js
+
+docker-build:
+  image: docker:latest
+  stage: build
+  services:
+    - docker:dind
+  variables:
+    GODEBUG: x509ignoreCN=0
+  before_script:
+    - echo $CI_REGISTRY_USER 
+    - echo $CI_REGISTRY
+    - echo $CI_REGISTRY_PASSWORD 
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_TAG .
+    - docker push $IMAGE_TAG
+
+security_scan:
+  stage: test
+  image:
+    name: aquasec/trivy:latest
+    entrypoint: [""]
+  services:
+    - docker:dind
+  script:
+    - trivy --no-progress --output scanning-report.txt  $IMAGE_TAG
+    #- trivy --exit-code 1 --no-progress --severity CRITICAL $IMAGE_TAG
+  artifacts:
+    reports:
+      container_scanning: scanning-report.txt
+
+testing-docker:
+  image: docker:latest
+  stage: test
+  services:
+    - docker:dind
+  before_script:
+    - apk add curl
+  script:
+    - echo "test1 passed!"
+    - docker run -d --name testcontainer -p 8080:8079 $IMAGE_TAG
+    - sh -c 'if [[ "$(curl -s -o /dev/null -w ''%{http_code}'' http://www.safecloudnativeapp.net)" == "200" ]]; then echo Success!; else exit 1; fi;'
+
+testing-login:
+  image: docker:latest
+  stage: test
+  script:
+    - echo "This is a dummy login!"
+
+deploy_staging:
+  stage: staging
+  image: bitnami/kubectl:latest
+  before_script:
+    - kubectl version
+  script:
+    - kubectl set image deployment/front-end front-end=$IMAGE_TAG -n sock-shop
+
+deploy_prod:
+  image: docker:latest
+  stage: production
+  script:
+    - echo "There is no production environment"
+  when: manual
+
