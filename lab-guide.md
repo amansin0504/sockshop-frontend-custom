@@ -619,71 +619,15 @@ The Tetration can be downloaded via the administrative interface, as described b
     >
     > If your web browser throws an error stating that downloading the installer shell script could do harm to your computer, you can safely ignore it and keep the file.
 
-###### Upload Tetration agent to S3 bucket
-
-When you ran the CloudFormation template it created an S3 bucket with a policy that allows EC2 instnaces to access objects in the bucket. You'll put the Tetration agent in that bucket so when Kubernetes nodes come online, they can download it one first boot.
-
-1. Access the S3 management console where you'll upload the Tetration agent installer.
-
-    > https://s3.console.aws.amazon.com/s3/buckets/${AWS_TET_AGENT_BUCKET}/?region=${AWS_REGION}
-
-2. Click the _Upload_ button.
-
-    <img src="https://app-first-sec.s3.amazonaws.com/lab-guide.assets/image-20200717103827.png" alt="image-20200717103827" style="zoom:50%;" />
-
-3. Click the _Add files_ button. Select the Tetration agent installer you downloaded in a previous step. It will be named similar to _tetration_installer_${POD_NAME}_enforcer_linux_tet-pov-rtp1.sh_.
-
-    <img src="https://app-first-sec.s3.amazonaws.com/lab-guide.assets/image-20200717104019.png" alt="image-20200717104019" style="zoom:50%;" />
-
-3. Click the _Upload_ button.
-
-    <img src="https://app-first-sec.s3.amazonaws.com/lab-guide.assets/image-20200717104557.png" alt="image-20200717104557" style="zoom:50%;" />
-
-    > **NOTE**
-    >
-    > By selecting _Upload_ it will use the default settings for the file. The most important of those settings are the _Permissions_ settings. AWS sets the default permissions so that a file is not publicly accessible. This is extremely important to monitor with cloud-hosted files as a large number of well-publicized breaches were the result of incorrect bucket or object permissions.
-    >
-    > The bucklet policy that was applied in the CloudFormation template you used at the start of this lab set access controls for all objects in this bucket to permit requests from your VPC's NAT gateway to download the objects.
-
-4. Select the row with the newly uploaded file and you'll be presented with details of the file including the _Object URL_, which is how the EKS nodes will access the installer script. If you renamed the Tetration agent installer file, you'll need this value in a future step.
-
-    <img src="https://app-first-sec.s3.amazonaws.com/lab-guide.assets/image-20200719082804.png" alt="image-20200719082804" style="zoom:50%;" />
-
-
 ##### Create an EKS Kubernetes cluster
 
 There are three ways to create an EKS-managed Kubernetes cluster: eksctl CLI, management console and AWS CLI. The recommended method is eksctl as it provides the most streamlined method to manage EKS clusters and implement automation. It is written in Go, uses CloudFormation, was created by Weaveworks and is open source.
 
 1. Return to the Cloud9 environment.
 
-2. Review the content of the EKS cluster yaml _${DOLLAR_SIGN}LAB/aws/eks-cluster.yaml_ by double-clicking on it in the file tree to understand some of the parameters that eksctl will use to setup the cluster. Especially review the _preBootstrapCommands_, which installs packages and the Tetration agent when the Kubernetes worker node boots up the first time.
+2. Review the content of the EKS cluster yaml _${DOLLAR_SIGN}LAB/aws/eks-cluster.yaml_ by double-clicking on it in the file tree to understand some of the parameters that eksctl will use to setup the cluster.
 
-    ```
-    preBootstrapCommands:
-    - "apt -y update"
-    - "apt -y install lsof unzip dmidecode ipset rpm"
-    - "curl -sSL https://${AWS_TET_AGENT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/tetration_installer_${POD_NAME}_enforcer_linux_tet-pov-rtp1.sh | bash"
-    ```
-
-    You'll also see the _ssh_ portion references the EC2 _key pair_ name used in a previous step that contains the SSH public key for your Cloud9 EC2 instance.
-
-    ```
-    ssh:
-       allow: true
-       publicKeyName: cisco-app-first-sec-cloud9
-    ```
-
-    >  **TIP**
-    >
-    > It's also worth noting that the EC2 instance type specified as _t2.medium_. Compute types smaller than that will quickly pose problems for even for non-production deployments of Kubernetes and small applications.
-
-3. If you didn't rename the Tetration agent installer file after downloading it, then you can skip this step. If you did rename it, you'll want to edit the following line to reflect the _Object URL_ you viewed in the S3 management console in an earlier step. Make sure to save the file once you've made your changes.
-
-    ```
-    - "curl -sSL https://${AWS_TET_AGENT_BUCKET}.s3.${AWS_REGION}.amazonaws.com/tetration_installer_${POD_NAME}_enforcer_linux_tet-pov-rtp1.sh | bash"
-    ```
-
-4. Start the process of creating the EKS Kubernertes cluster from the Cloud9 bottom right pane within a terminal. It's important to create the cluster using an AWS profile that has restricted permissions within your AWS org, which in this case is done setting a temporary env variable that was setup in previous steps at the beginning of the command.
+3. Start the process of creating the EKS Kubernertes cluster from the Cloud9 bottom right pane within a terminal. It's important to create the cluster using an AWS profile that has restricted permissions within your AWS org, which in this case is done setting a temporary env variable that was setup in previous steps at the beginning of the command.
 
     ###### Command
 
@@ -842,33 +786,6 @@ Once you have created a cluster using _eksctl_, you will find that cluster crede
 > **TIP**
 >
 > Typing _kubectl_ over and over can get very tiring. An alias has been created in your _~/.bashrc_ so using just _k_ is aliased to _kubectl_. Try it out with _k get nodes_.
-
-
-
-##### Confirm admin access to Kubernetes worker nodes
-
-During the creation of the cluster, eksctl set the key pair for the nodegroup to your Cloud9 instance SSH public key. This will allow for passwordless access from the Cloud9 instance to the worker nodes.
-
-1. Confirm SSH access from the Cloud9 instance to at least one of the worker nodes. Use the _kubectl get nodes -o wide_ command to retrieve an IP address of a worker node to use for the command below. When you're asked if you want to continue connecting answer _yes_.
-
-    ###### Command
-
-    ```
-    ssh ubuntu@10.50.110.147
-    ```
-
-    ###### Output
-
-    ```
-    The authenticity of host '10.50.110.147 (10.50.110.147)' can't be established.
-    ECDSA key fingerprint is SHA256:dkKX/COoWxEY4c6geRr+aeh1mp+eQrvBjhgH4P9GCoU.
-    Are you sure you want to continue connecting (yes/no)? yes
-    Warning: Permanently added '10.50.110.147' (ECDSA) to the list of known hosts.
-    Welcome to Ubuntu 18.04.3 LTS (GNU/Linux 4.15.0-1045-aws x86_64)
-
-    ubuntu@ip-10-50-110-147:~$
-    ```
-
 
 
 ### Deploy applications on Kubernetes
