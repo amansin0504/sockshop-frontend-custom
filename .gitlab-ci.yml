@@ -1,8 +1,7 @@
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: ""
-  IMAGE_TAG: $CI_REGISTRY_IMAGE/$CI_COMMIT_REF_SLUG:$CI_COMMIT_SHA
-  AKSCLUSTERNAME: spoke1akscluster
+  IMAGE_TAG: $DOCKER_REGISTRY:$CI_COMMIT_SHA
   CLAIR_OUTPUT: High
 
 image: docker:latest
@@ -11,11 +10,12 @@ stages:
   - lint
   - build
   - test
-  - staging
   - production
 
 eslint:
   image: node:latest
+  tags:
+    - docker
   stage: lint
   before_script:
     - npm init --yes
@@ -26,21 +26,22 @@ eslint:
 docker-build:
   image: docker:latest
   stage: build
+  tags:
+    - docker
   services:
     - docker:dind
-  variables:
-    GODEBUG: x509ignoreCN=0
   before_script:
-    - echo $CI_REGISTRY_USER 
-    - echo $CI_REGISTRY
-    - echo $CI_REGISTRY_PASSWORD 
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - apk add --no-cache curl jq python3 py3-pip
+    - pip install awscli
+    - aws ecr get-login-password | docker login --username AWS --password-stdin $DOCKER_REGISTRY
   script:
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
 
 security_scan:
   stage: test
+  tags:
+    - docker
   image:
     name: aquasec/trivy:latest
     entrypoint: [""]
@@ -56,33 +57,32 @@ security_scan:
 testing-docker:
   image: docker:latest
   stage: test
+  tags:
+    - docker
   services:
     - docker:dind
   before_script:
-    - apk add curl
+    - apk add --no-cache curl jq python3 py3-pip
+    - pip install awscli
+    - aws ecr get-login-password | docker login --username AWS --password-stdin $DOCKER_REGISTRY
   script:
-    - echo "test1 passed!"
-    - docker run -d --name testcontainer -p 8080:8079 $IMAGE_TAG
-    - sh -c 'if [[ "$(curl -s -o /dev/null -w ''%{http_code}'' http://www.safecloudnativeapp.net)" == "200" ]]; then echo Success!; else exit 1; fi;'
+    - docker run -d --name testcontainer -p 8079:8079 $IMAGE_TAG
 
 testing-login:
   image: docker:latest
   stage: test
+  tags:
+    - docker
   script:
     - echo "This is a dummy login!"
 
-deploy_staging:
-  stage: staging
+deploy_prod:
+  stage: production
   image: bitnami/kubectl:latest
+  tags:
+    - docker
   before_script:
     - kubectl version
   script:
     - kubectl set image deployment/front-end front-end=$IMAGE_TAG -n sock-shop
-
-deploy_prod:
-  image: docker:latest
-  stage: production
-  script:
-    - echo "There is no production environment"
   when: manual
-
