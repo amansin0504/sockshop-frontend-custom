@@ -78,10 +78,11 @@ testing-login:
 
 deploy_prod:
   stage: production
-  image: bitnami/kubectl:latest
+  image: alpine/k8s:1.16.15
   tags:
     - docker
   before_script:
+    - aws eks update-kubeconfig --name app-first-sec
     - kubectl version
   script:
     - kubectl set image deployment/front-end front-end=$IMAGE_TAG -n sock-shop
