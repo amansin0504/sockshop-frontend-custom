@@ -8,8 +8,8 @@ image: docker:latest
 
 stages:
   - linting
-  - building
   - testing
+  - building
   - deployment
 
 eslint:
@@ -22,21 +22,6 @@ eslint:
     - npm install -g eslint
   script:
     - eslint -c .eslintrc.js server.js
-
-docker-build:
-  image: docker:latest
-  stage: building
-  tags:
-    - docker
-  services:
-    - docker:dind
-  before_script:
-    - apk add --no-cache curl jq python3 py3-pip
-    - pip install awscli
-    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $DOCKER_REGISTRY
-  script:
-    - docker build -t $IMAGE_TAG .
-    - docker push $IMAGE_TAG
 
 security_scan:
   stage: testing
@@ -54,9 +39,23 @@ security_scan:
     reports:
       container_scanning: scanning-report.txt
 
-testing-docker:
+testing-login:
   image: docker:latest
   stage: testing
+  tags:
+    - docker
+  before_script:
+    - apk add --no-cache curl jq python3 py3-pip
+    - pip install awscli
+    - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $DOCKER_REGISTRY
+  script:
+    - docker build -t $IMAGE_TAG .
+    - docker run -d --name testcontainer -p 8079:8079 $IMAGE_TAG
+    - curl -I localhost:8079  2>/dev/null | head -n 1 | cut -d$' ' -f2
+
+docker-build:
+  image: docker:latest
+  stage: building
   tags:
     - docker
   services:
@@ -66,15 +65,8 @@ testing-docker:
     - pip install awscli
     - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $DOCKER_REGISTRY
   script:
-    - docker run -d --name testcontainer -p 8079:8079 $IMAGE_TAG
-
-testing-login:
-  image: docker:latest
-  stage: testing
-  tags:
-    - docker
-  script:
-    - echo "This is a dummy login!"
+    - docker build -t $IMAGE_TAG .
+    - docker push $IMAGE_TAG
 
 deployment:
   stage: deployment
