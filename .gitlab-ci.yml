@@ -7,33 +7,20 @@ variables:
 image: docker:latest
 
 stages:
-  - linting
   - testing
   - building
   - deployment
 
-eslint:
+linting:
   image: node:latest
   tags:
     - docker
-  stage: linting
+  stage: testing
   before_script:
     - npm init --yes
     - npm install -g eslint
   script:
     - eslint -c .eslintrc.js server.js
-
-testing-frontend:
-  image: docker:latest
-  stage: testing
-  tags:
-    - docker
-  before_script:
-    - apk add --no-cache curl jq python3 py3-pip
-  script:
-    - docker build -t $IMAGE_TAG .
-    - docker run -d -p 8079:8079 $IMAGE_TAG
-    - curl -I localhost:8079
 
 docker-build:
   image: docker:latest
