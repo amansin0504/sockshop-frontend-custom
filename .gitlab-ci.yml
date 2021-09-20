@@ -46,7 +46,7 @@ deployment:
   tags:
     - docker
   before_script:
-    - aws eks update-kubeconfig --name app-first-sec
+    - aws eks update-kubeconfig --region $AWS_DEFAULT_REGION --name app-first-sec
     - kubectl version
   script:
     - kubectl set image deployment/front-end front-end=$IMAGE_TAG -n sock-shop
