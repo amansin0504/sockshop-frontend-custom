@@ -37,8 +37,9 @@ docker-build:
     - echo $IMAGE_TAG
     - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $DOCKER_REGISTRY
   script:
-    - docker build -t $IMAGE_TAG .
-    - docker push $IMAGE_TAG
+    - docker build -t sock-shop/front-end .
+    - docker tag sock-shop/front-end:latest $DOCKER_REGISTRY:latest
+    - docker push $DOCKER_REGISTRY:latest
 
 deployment:
   stage: deployment
@@ -49,5 +50,5 @@ deployment:
     - aws eks update-kubeconfig --region $AWS_DEFAULT_REGION --name app-first-sec
     - kubectl version
   script:
-    - kubectl set image deployment/front-end front-end=$IMAGE_TAG -n sock-shop
+    - kubectl apply -f sock-shop-duo.yaml -n sock-shop
   when: manual
