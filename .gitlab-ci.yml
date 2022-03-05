@@ -7,15 +7,15 @@ variables:
 image: docker:latest
 
 stages:
-  - testing
-  - building
-  - deployment
+  - test
+  - build
+  - deploy
 
 linting:
   image: node:latest
   tags:
     - docker
-  stage: testing
+  stage: test
   before_script:
     - npm init --yes
     - npm install -g eslint
@@ -24,7 +24,7 @@ linting:
 
 docker-build:
   image: docker:latest
-  stage: building
+  stage: build
   tags:
     - docker
   services:
@@ -42,7 +42,7 @@ docker-build:
     - docker push $DOCKER_REGISTRY:latest
 
 deployment:
-  stage: deployment
+  stage: deploy
   image: alpine/k8s:1.16.15
   tags:
     - docker
