@@ -50,5 +50,5 @@ deployment:
     - aws eks update-kubeconfig --region $AWS_DEFAULT_REGION --name app-first-sec
     - kubectl version
   script:
-    - kubectl apply -f sock-shop-elb.yaml -n sock-shop
+    - kubectl apply -f sock-shop-duo.yaml -n sock-shop
   when: manual
